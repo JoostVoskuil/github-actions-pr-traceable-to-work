@@ -1,17 +1,22 @@
-name: 'Require a linked work item'
-description: 'Require every pull request to link to an Azure DevOps work item or GitHub issue'
-author: 'Joost Voskuil (based on DanHellem)'
+name: Require a linked work item or issue
+description: Enforce that pull requests link to an Azure DevOps work item or GitHub issue.
+author: 'Joost Voskuil'
+
 branding:
-  icon: "code"
-  color: "purple"
+  icon: link
+  color: purple
+
 inputs:
   provider:
-    description: 'Work item provider. Supported values: azuredevops, github.'
+    description: 'Work-item provider: azuredevops or github.'
     required: true
+
   repo-token:
-    description: 'GitHub token for the repository (automatically created by GitHub)'
+    description: 'GitHub token used to read linked issues and manage pull-request comments.'
     default: ${{ github.token }}
     required: false
+
+# `dist/index.js` is the committed NCC bundle produced by `npm run package`.
 runs:
   using: 'node24'
   main: 'dist/index.js'
