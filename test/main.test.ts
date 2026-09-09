@@ -19,13 +19,15 @@ test('wait 500 ms', async () => {
 
 // shows how the runner will run a javascript action with env / stdout protocol
 test('test runs', () => {
-  process.env.INPUT_MILLISECONDS = '500';
-  process.env.INPUT_PROVIDER = 'azuredevops';
-  process.env['INPUT_REPO-TOKEN'] = 'test-token';
   const np = process.execPath;
   const ip = path.join(__dirname, '..', 'dist', 'index.js');
   const options: cp.ExecFileSyncOptions = {
-    env: process.env,
+    env: {
+      ...process.env,
+      GITHUB_EVENT_NAME: 'push',
+      INPUT_PROVIDER: 'azuredevops',
+      'INPUT_REPO-TOKEN': 'test-token',
+    },
   };
   console.log(cp.execFileSync(np, [ip], options).toString());
 });
