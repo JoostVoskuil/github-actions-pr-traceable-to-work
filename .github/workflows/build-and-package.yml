@@ -1,41 +1,40 @@
-name: 'Build and Package'
+name: Build, Package, and Release
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+    concurrency:
+      group: release-main
+      cancel-in-progress: false
+
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        
+        with:
+          fetch-depth: 0
+
       - name: Setup Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24.x'
-          cache: 'npm'
-          
+          cache: npm
+
       - name: Install dependencies
         run: npm ci
-        
-      - name: Build project
-        run: npm run build
-        
-      - name: Package project
-        run: npm run package
-        
+
+      - name: Build, package, and test action
+        run: |
+          npm run clean
+          npm run ci
+
       - name: Commit packaged action
-        if: github.ref == 'refs/heads/main'
         run: |
           if git diff --quiet -- dist/; then
             echo "Packaged action is already up to date."
@@ -48,18 +47,65 @@ jobs:
           git commit --message "build: package action"
           git push origin HEAD:main
 
-      - name: Create semver tag and GitHub release
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Determine release type
+        id: version
         run: |
+          SEMVER_COMPONENT='(0|[1-9][0-9]*)'
+          STABLE_SEMVER="${SEMVER_COMPONENT}\\.${SEMVER_COMPONENT}\\.${SEMVER_COMPONENT}"
           VERSION=$(node --eval "process.stdout.write(require('./package.json').version)")
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "package.json version is not valid semver: $VERSION" >&2
+          if [[ ! "$VERSION" =~ ^${STABLE_SEMVER}$ ]]; then
+            echo "package.json version must be a stable semantic version: $VERSION" >&2
             exit 1
           fi
 
-          TAG="v${VERSION}"
+          LOCK_VERSION=$(node --eval "process.stdout.write(require('./package-lock.json').version)")
+          if [[ "$LOCK_VERSION" != "$VERSION" ]]; then
+            echo "package-lock.json version ($LOCK_VERSION) must match package.json version ($VERSION)." >&2
+            exit 1
+          fi
+
+          git fetch --force --tags origin
+          mapfile -t tags < <(git tag --merged HEAD --list 'v*' | grep -E "^v${STABLE_SEMVER}$" | sort --version-sort || true)
+
+          if [[ ${#tags[@]} -eq 0 ]]; then
+            echo "No stable release tag found; creating the initial release v$VERSION."
+            echo "release_type=initial" >> "$GITHUB_OUTPUT"
+            echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LATEST_TAG=${tags[${#tags[@]} - 1]}
+          LATEST_VERSION=${LATEST_TAG#v}
+          IFS=. read -r major minor patch <<< "$VERSION"
+          IFS=. read -r latest_major latest_minor latest_patch <<< "$LATEST_VERSION"
+
+          if [[ "$VERSION" == "$LATEST_VERSION" ]]; then
+            echo "Version $VERSION is already released; skipping release."
+            echo "release_type=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ $major -eq $latest_major && $minor -eq $latest_minor && $patch -eq $((latest_patch + 1)) ]]; then
+            RELEASE_TYPE=patch
+          elif [[ $major -eq $latest_major && $minor -eq $((latest_minor + 1)) && $patch -eq 0 ]]; then
+            RELEASE_TYPE=minor
+          elif [[ $major -eq $((latest_major + 1)) && $minor -eq 0 && $patch -eq 0 ]]; then
+            RELEASE_TYPE=major
+          else
+            echo "Version $VERSION is not the next patch, minor, or major release after $LATEST_VERSION." >&2
+            exit 1
+          fi
+
+          echo "Detected $RELEASE_TYPE release: $LATEST_VERSION -> $VERSION"
+          echo "release_type=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create semver tag and GitHub release
+        if: steps.version.outputs.release_type != 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           if ! git ls-remote --exit-code --refs origin "refs/tags/${TAG}" >/dev/null 2>&1; then
