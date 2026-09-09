@@ -1,70 +1,71 @@
-> [!WARNING]
-> **Archived:** This repository is no longer actively maintained, and this tool is no longer supported. It is being retained for reference purposes only.
+# Check for a linked work item
 
-# Check for a linked Azure DevOps work item
+Use this action to require a pull request to link to either an Azure DevOps work item or a GitHub issue before it can merge.
 
-Use this action to check your pull request to make sure it is linked to a work item using ``AB#`` before you can merge.
+The required `provider` input supports exactly `azuredevops` and `github`. The action ignores pull requests sent by `dependabot[bot]`.
 
-[Click here](https://github.com/marketplace/actions/azure-boards-check-for-ab) to see the action in the GitHub marketplace.
+## Usage
 
-## 💁‍♂️ Usage
-
-Make sure the GitHub repository is properly linked to an Azure DevOps project. The following docs will help you get started and setup:
-
-- [Learn about the Azure Boards - GitHub integration](https://learn.microsoft.com/en-us/azure/devops/boards/github/?view=azure-devops)
-- [Install the Azure Boards app](https://github.com/marketplace/azure-boards)
-- [Connect a GitHub repository to Azure Boards](https://learn.microsoft.com/en-us/azure/devops/boards/github/add-remove-repositories?view=azure-devops)
-- [Link GitHub commits and pull requests to work items in Azure Boards](https://learn.microsoft.com/en-us/azure/devops/boards/github/link-to-from-github?view=azure-devops)
-
-## 👩‍🏫 How it works
-
-The action will check the pull request description for ``AB#`` and a valid work item id. If it finds a valid work item id, it will pass. If it does not find a valid work item id, it will fail.
-
-If the sender is ``dependabot[bot]`` the action will ignore the check.
-
-https://github.com/danhellem/github-actions-pr-is-linked-to-work-item/assets/10525048/1a63ba2d-067b-4f79-b292-b2d1118c43ed
-
-## 🔑 Permissions
-
-You might get an error whent the action is run. If you open the error log and see something like this:
-
-``
-"Error: Resource not accessible by integration" 
-``
-
-To fix this, go to ``https://github.com/{owner}/{repo}/settings/actions`` and in **Workflow Permissions** section give actions **Read and Write permissions**. That provides the token with rights to modify your repo and solves your problem.
-
-## ✅ Codes
-
-We use a series of code values to mark and check previous comments to ensure the actions does not get too chatty after each run. For example, if you don't add ``AB#{ID}`` to the description, we don't need to tell you every time you update the desciption. We will only tell you once untill something changes.
-
-### lcc-200
-
-Successfully found a valid work item id in the pull request description.
-
-### lcc-404
-
-Missing ``AB#`` in the pull request description.
-
-### lcc-416
-
-Found ``AB#`` but the work item id is not valid.
-
-## 📄 validate-pr-ab.yml
-
-This is the main workflow file. It will run on any pull request that is opened, reopened, or edited. It will only run on the ``main`` branch. This file needs to be added to the ``.github/workflows`` folder in your repository.
+Run the action when a pull request is opened, reopened, or edited. It needs permission to read pull requests and write issue comments.
 
 ```yml
-name: 'Description contains AB# with a valid work item id'
-on: # rebuild any PRs for main branch changes
+name: Validate linked work item
+
+on:
   pull_request:
     types: [opened, reopened, edited]
-    branches:
-      - main 
+    branches: [main]
+
+permissions:
+  pull-requests: read
+  issues: write
+
 jobs:
-  create-edit-comment:
-    name: check   
+  check:
     runs-on: ubuntu-latest
     steps:
-      - uses: danhellem/github-actions-pr-is-linked-to-work-item@main
+      - uses: JoostVoskuil/github-actions-pr-traceable-to-work@main
+        with:
+          provider: azuredevops
 ```
+
+### Azure DevOps
+
+Set `provider: azuredevops`. The action requires an `AB#` reference in the pull request description and verifies that the Azure Boards integration created the matching link.
+
+Make sure the GitHub repository is connected to Azure Boards:
+
+- [Azure Boards and GitHub integration](https://learn.microsoft.com/en-us/azure/devops/boards/github/?view=azure-devops)
+- [Install the Azure Boards app](https://github.com/marketplace/azure-boards)
+- [Link GitHub pull requests to Azure Boards work items](https://learn.microsoft.com/en-us/azure/devops/boards/github/link-to-from-github?view=azure-devops)
+
+### GitHub Issues
+
+Set `provider: github`. The pull request description must use a GitHub closing keyword and the referenced issue must appear in GitHub's linked-issues relationship for the pull request.
+
+```text
+Fixes #123
+Resolves octo-org/other-repository#456
+```
+
+The supported keywords are `close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, and `resolved`, without regard to case. Casual references such as `Related to #123` do not pass the check.
+
+For a private issue in another repository, provide `repo-token` with access to both repositories. The default `GITHUB_TOKEN` commonly has access only to the repository running the workflow.
+
+## Central required workflow
+
+For an organization or enterprise ruleset, use the example workflow at [`./required-linked-github-issue.yml`](./required-linked-github-issue.yml) from a central repository. Configure the ruleset's **Require workflows to pass before merging** rule to use that repository and workflow.
+
+The example uses `pull_request_target`, which ruleset workflows support and which lets the action comment on the pull request. It does not check out the repository or run pull-request code, so it is safe for forked pull requests. It also uses `ubuntu-slim`, GitHub's single-CPU runner optimized for short automation tasks, and cancels obsolete runs for the same pull request.
+
+See GitHub's documentation for [Require workflows to pass before merging](https://docs.github.com/en/enterprise-cloud@latest/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-workflows-to-pass-before-merging). This lets one workflow enforce the requirement globally across all repositories targeted by an organization or enterprise ruleset.
+
+The central workflow repository must have a visibility compatible with the repositories covered by the ruleset. If it is internal or private, enable access to its actions and workflows from the applicable organization or enterprise repositories in the central repository's **Actions** settings.
+
+This repository is a fork and rebrand maintained by [Joost Voskuil](https://github.com/JoostVoskuil). The original action was created by [DanHellem](https://github.com/danhellem) in [`danhellem/github-actions-pr-is-linked-to-work-item`](https://github.com/danhellem/github-actions-pr-is-linked-to-work-item). Credit is retained in appreciation of that work.
+
+## Comment codes
+
+The action adds hidden markers to its comments to avoid posting duplicates. Azure DevOps uses `lcc-200` (success), `lcc-404` (missing reference), and `lcc-416` (unlinked reference). GitHub Issues uses `ghi-200` (success), `ghi-404` (missing closing reference), and `ghi-409` (reference not linked by GitHub).
+
+If you see `Resource not accessible by integration`, grant the workflow token the permissions shown above in the workflow or in the repository's **Actions** settings.
