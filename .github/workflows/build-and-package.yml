@@ -43,6 +43,37 @@ jobs:
             lib/
           retention-days: 7
 
+  tag:
+    name: Tag package version
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Create semver tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node --eval "process.stdout.write(require('./package.json').version)")
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "package.json version is not valid semver: $VERSION" >&2
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+          if git ls-remote --exit-code --refs origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists; nothing to do."
+            exit 0
+          fi
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag --annotate "${TAG}" --message "Release ${TAG}"
+          git push origin "${TAG}"
+
   publish:
     name: Publish GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
