@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
     concurrency:
       group: release-main
       cancel-in-progress: false
@@ -34,6 +35,82 @@ jobs:
           npm run clean
           npm run ci
 
+      - name: Determine release type
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pull_request_numbers=$(gh api \
+            --paginate \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq '.[] | select(.merged_at != null) | .number')
+
+          if [[ -z "$pull_request_numbers" ]]; then
+            echo "No merged pull request is associated with ${GITHUB_SHA}; skipping release."
+            echo "release_type=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mapfile -t pull_requests <<< "$pull_request_numbers"
+
+          if [[ ${#pull_requests[@]} -ne 1 ]]; then
+            echo "Expected one merged pull request for ${GITHUB_SHA}, found ${#pull_requests[@]}." >&2
+            exit 1
+          fi
+
+          PULL_REQUEST=${pull_requests[0]}
+          release_label_names=$(gh pr view "$PULL_REQUEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json labels \
+            --jq '.labels[].name | select(test("^release:(patch|minor|major)$"))')
+
+          if [[ -z "$release_label_names" ]]; then
+            echo "Pull request #${PULL_REQUEST} has no release label; skipping release."
+            echo "release_type=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mapfile -t release_labels <<< "$release_label_names"
+
+          if [[ ${#release_labels[@]} -ne 1 ]]; then
+            echo "Pull request #${PULL_REQUEST} must have exactly one of release:patch, release:minor, or release:major." >&2
+            exit 1
+          fi
+
+          RELEASE_TYPE=${release_labels[0]#release:}
+          SEMVER_COMPONENT='(0|[1-9][0-9]*)'
+          STABLE_SEMVER="${SEMVER_COMPONENT}\\.${SEMVER_COMPONENT}\\.${SEMVER_COMPONENT}"
+          git fetch --force --tags origin
+          mapfile -t tags < <(git tag --list 'v*' | grep -E "^v${STABLE_SEMVER}$" | sort --version-sort || true)
+
+          if [[ ${#tags[@]} -eq 0 ]]; then
+            LATEST_VERSION='0.0.0'
+          else
+            LATEST_VERSION=${tags[${#tags[@]} - 1]#v}
+          fi
+
+          IFS=. read -r major minor patch <<< "$LATEST_VERSION"
+          case "$RELEASE_TYPE" in
+            patch)
+              patch=$((patch + 1))
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+          esac
+
+          TAG="v${major}.${minor}.${patch}"
+          echo "Pull request #${PULL_REQUEST} requests a ${RELEASE_TYPE} release: ${LATEST_VERSION} -> ${TAG#v}"
+          echo "release_type=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Commit packaged action
         run: |
           if git diff --quiet -- dist/; then
@@ -46,59 +123,6 @@ jobs:
           git add dist/
           git commit --message "build: package action"
           git push origin HEAD:main
-
-      - name: Determine release type
-        id: version
-        run: |
-          SEMVER_COMPONENT='(0|[1-9][0-9]*)'
-          STABLE_SEMVER="${SEMVER_COMPONENT}\\.${SEMVER_COMPONENT}\\.${SEMVER_COMPONENT}"
-          VERSION=$(node --eval "process.stdout.write(require('./package.json').version)")
-          if [[ ! "$VERSION" =~ ^${STABLE_SEMVER}$ ]]; then
-            echo "package.json version must be a stable semantic version: $VERSION" >&2
-            exit 1
-          fi
-
-          LOCK_VERSION=$(node --eval "process.stdout.write(require('./package-lock.json').version)")
-          if [[ "$LOCK_VERSION" != "$VERSION" ]]; then
-            echo "package-lock.json version ($LOCK_VERSION) must match package.json version ($VERSION)." >&2
-            exit 1
-          fi
-
-          git fetch --force --tags origin
-          mapfile -t tags < <(git tag --merged HEAD --list 'v*' | grep -E "^v${STABLE_SEMVER}$" | sort --version-sort || true)
-
-          if [[ ${#tags[@]} -eq 0 ]]; then
-            echo "No stable release tag found; creating the initial release v$VERSION."
-            echo "release_type=initial" >> "$GITHUB_OUTPUT"
-            echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          LATEST_TAG=${tags[${#tags[@]} - 1]}
-          LATEST_VERSION=${LATEST_TAG#v}
-          IFS=. read -r major minor patch <<< "$VERSION"
-          IFS=. read -r latest_major latest_minor latest_patch <<< "$LATEST_VERSION"
-
-          if [[ "$VERSION" == "$LATEST_VERSION" ]]; then
-            echo "Version $VERSION is already released; skipping release."
-            echo "release_type=none" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ $major -eq $latest_major && $minor -eq $latest_minor && $patch -eq $((latest_patch + 1)) ]]; then
-            RELEASE_TYPE=patch
-          elif [[ $major -eq $latest_major && $minor -eq $((latest_minor + 1)) && $patch -eq 0 ]]; then
-            RELEASE_TYPE=minor
-          elif [[ $major -eq $((latest_major + 1)) && $minor -eq 0 && $patch -eq 0 ]]; then
-            RELEASE_TYPE=major
-          else
-            echo "Version $VERSION is not the next patch, minor, or major release after $LATEST_VERSION." >&2
-            exit 1
-          fi
-
-          echo "Detected $RELEASE_TYPE release: $LATEST_VERSION -> $VERSION"
-          echo "release_type=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create semver tag and GitHub release
         if: steps.version.outputs.release_type != 'none'
