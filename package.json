@@ -1,6 +1,6 @@
 {
   "name": "github-actions-pr-traceable-to-work",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "GitHub Action that requires pull requests to link to an Azure DevOps work item or GitHub issue",
   "main": "lib/main.js",
