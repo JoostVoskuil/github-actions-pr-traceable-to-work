@@ -1,12 +1,15 @@
-name: 'Azure Boards, check for AB#'
-description: 'Check if the pull request is linked to a work item in Azure DevOps'
-author: 'danhellem'
+name: 'Require a linked work item'
+description: 'Require every pull request to link to an Azure DevOps work item or GitHub issue'
+author: 'Joost Voskuil (based on DanHellem)'
 branding:
   icon: "code"
   color: "purple"
 inputs:
+  provider:
+    description: 'Work item provider. Supported values: azuredevops, github.'
+    required: true
   repo-token:
-    description: 'Github token of the repository (automatically created by GitHub)'
+    description: 'GitHub token for the repository (automatically created by GitHub)'
     default: ${{ github.token }}
     required: false
 runs:

@@ -1,6 +1,6 @@
-import * as cp from 'child_process';
-import * as path from 'path';
-import * as process from 'process';
+import * as cp from 'node:child_process';
+import * as path from 'node:path';
+import * as process from 'node:process';
 import { expect, test } from 'vitest';
 import { wait } from '../src/wait';
 
@@ -19,7 +19,8 @@ test('wait 500 ms', async () => {
 
 // shows how the runner will run a javascript action with env / stdout protocol
 test('test runs', () => {
-  process.env['INPUT_MILLISECONDS'] = '500';
+  process.env.INPUT_MILLISECONDS = '500';
+  process.env.INPUT_PROVIDER = 'azuredevops';
   process.env['INPUT_REPO-TOKEN'] = 'test-token';
   const np = process.execPath;
   const ip = path.join(__dirname, '..', 'lib', 'main.js');

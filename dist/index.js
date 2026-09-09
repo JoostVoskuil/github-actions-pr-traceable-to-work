@@ -51,153 +51,335 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
+const providers_1 = __nccwpck_require__(3121);
+const DEPENDABOT_BOT = 'dependabot[bot]';
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e;
         var _f, _g, _h, _j, _k;
         try {
             const context = github.context;
-            const github_token = core.getInput('repo-token');
-            const pull_request_number = (_f = (_a = context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.number) !== null && _f !== void 0 ? _f : 0;
-            const pull_request_description = (_g = (_b = context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.body) !== null && _g !== void 0 ? _g : '';
-            const ab_lookup_match = pull_request_description.match(/AB#(\d+)/g);
-            const repository_owner = (_h = (_c = context.payload.repository) === null || _c === void 0 ? void 0 : _c.owner.login) !== null && _h !== void 0 ? _h : '';
-            const repository_name = (_j = (_d = context.payload.repository) === null || _d === void 0 ? void 0 : _d.name) !== null && _j !== void 0 ? _j : '';
-            const sender_login = (_k = (_e = context.payload.sender) === null || _e === void 0 ? void 0 : _e.login) !== null && _k !== void 0 ? _k : '';
-            let work_item_id = '';
-            let last_comment_posted = { code: '', id: 0 };
-            const octokit = github.getOctokit(github_token);
-            console.log(sender_login);
-            // if the sender in the azure-boards bot or dependabot, then exit code
-            // nothing needs to be done
-            if (sender_login === 'dependabot[bot]') {
-                console.log(`dependabot[bot] sender, exiting action.`);
+            const githubToken = core.getInput('repo-token');
+            const provider = (0, providers_1.getProvider)(core.getInput('provider', { required: true }));
+            const senderLogin = (_f = (_a = context.payload.sender) === null || _a === void 0 ? void 0 : _a.login) !== null && _f !== void 0 ? _f : '';
+            console.log(senderLogin);
+            if (senderLogin === DEPENDABOT_BOT) {
+                console.log(`${DEPENDABOT_BOT} sender, exiting action.`);
                 return;
             }
-            if (context.eventName === 'pull_request') {
-                last_comment_posted = yield getLastComment(octokit, repository_owner, repository_name, pull_request_number);
-                console.log(`Last comment posted by action: ${last_comment_posted.code}`);
-                // check if pull request description contains a AB#<work item number>
-                console.log(`Checking description for AB#{ID} ...`);
-                if (ab_lookup_match) {
-                    for (const match of ab_lookup_match) {
-                        work_item_id = match.substring(3);
-                        break;
-                    }
-                    // Validate work_item_id is a valid integer
-                    if (!/^\d+$/.test(work_item_id)) {
-                        const errorMsg = `❌ Invalid work item number: AB#${work_item_id}. Work item number must be a valid integer.`;
-                        console.log(errorMsg);
-                        yield octokit.rest.issues.createComment(Object.assign(Object.assign({}, context.repo), { issue_number: pull_request_number, body: `${errorMsg}\n\n[Click here](https://learn.microsoft.com/en-us/azure/devops/boards/github/link-to-from-github?view=azure-devops#use-ab-mention-to-link-from-github-to-azure-boards-work-items) to learn more.\n\n<!-- code: lcc-416 -->` }));
-                        core.setFailed(errorMsg);
-                        return;
-                    }
-                    console.log(`AB#${work_item_id} found in pull request description.`);
-                    console.log(`Checking to see if bot created link ...`);
-                    // check if the description contains a link to the work item
-                    if ((pull_request_description === null || pull_request_description === void 0 ? void 0 : pull_request_description.includes('[AB#')) &&
-                        (pull_request_description === null || pull_request_description === void 0 ? void 0 : pull_request_description.includes('/_workitems/edit/'))) {
-                        console.log(`Success: AB#${work_item_id} link found.`);
-                        console.log('Done.');
-                        // if the last comment is the check failed, now it passed and we can post a new comment
-                        if (last_comment_posted.code !== 'lcc-200' &&
-                            sender_login === 'azure-boards[bot]') {
-                            // if the last check failed, then the azure-boards[bot] ran and passed, we can delete the last comment
-                            if (last_comment_posted.code === 'lcc-416' &&
-                                sender_login === 'azure-boards[bot]') {
-                                console.log(`Deleting last comment posted by action: ${last_comment_posted.id}`);
-                                yield octokit.rest.issues.deleteComment({
-                                    owner: repository_owner,
-                                    repo: repository_name,
-                                    comment_id: last_comment_posted.id,
-                                });
-                            }
-                            yield octokit.rest.issues.createComment(Object.assign(Object.assign({}, context.repo), { issue_number: pull_request_number, body: `✅ Work item link check complete. Description contains link AB#${work_item_id} to an Azure Boards work item.\n\n<!-- code: lcc-200 -->` }));
-                        }
-                        return;
-                    }
-                    else {
-                        // check if the description contains a link to the work item
-                        console.log(`Bot did not create a link from AB#${work_item_id}`);
-                        if (last_comment_posted.code !== 'lcc-416' &&
-                            sender_login !== 'azure-boards[bot]') {
-                            yield octokit.rest.issues.createComment(Object.assign(Object.assign({}, context.repo), { issue_number: pull_request_number, body: `❌ Work item link check failed. Description contains AB#${work_item_id} but the Bot could not link it to an Azure Boards work item.\n\n[Click here](https://learn.microsoft.com/en-us/azure/devops/boards/github/link-to-from-github?view=azure-devops#use-ab-mention-to-link-from-github-to-azure-boards-work-items) to learn more.\n\n<!--code: lcc-416-->` }));
-                            core.setFailed(`Description contains AB#${work_item_id} but the Bot could not link it to an Azure Boards work item`);
-                            return;
-                        }
-                        core.warning(`Description contains AB#${work_item_id} and waiting for the azure-boards[bot] to validate the link`);
-                    }
-                    return;
-                }
-                else {
-                    if (last_comment_posted.code !== 'lcc-404') {
-                        yield octokit.rest.issues.createComment(Object.assign(Object.assign({}, context.repo), { issue_number: pull_request_number, body: `❌ Work item link check failed. Description does not contain AB#{ID}.\n\n[Click here](https://learn.microsoft.com/en-us/azure/devops/boards/github/link-to-from-github?view=azure-devops#use-ab-mention-to-link-from-github-to-azure-boards-work-items) to Learn more.\n\n<!-- code: lcc-404 -->` }));
-                    }
-                    core.setFailed('Description does not contain AB#{ID}');
-                }
+            if (context.eventName !== 'pull_request' &&
+                context.eventName !== 'pull_request_target') {
+                return;
             }
+            const pullRequest = {
+                number: (_g = (_b = context.payload.pull_request) === null || _b === void 0 ? void 0 : _b.number) !== null && _g !== void 0 ? _g : 0,
+                description: (_h = (_c = context.payload.pull_request) === null || _c === void 0 ? void 0 : _c.body) !== null && _h !== void 0 ? _h : '',
+                owner: (_j = (_d = context.payload.repository) === null || _d === void 0 ? void 0 : _d.owner.login) !== null && _j !== void 0 ? _j : '',
+                repo: (_k = (_e = context.payload.repository) === null || _e === void 0 ? void 0 : _e.name) !== null && _k !== void 0 ? _k : '',
+            };
+            const octokit = github.getOctokit(githubToken);
+            const lastComment = yield getLastComment(octokit, pullRequest, provider);
+            console.log(`Last comment posted by action: ${lastComment.code}`);
+            const reference = provider.findReference(pullRequest.description, pullRequest);
+            if (!reference) {
+                yield handleMissingWorkItem(octokit, pullRequest, provider, lastComment);
+                return;
+            }
+            yield handleWorkItemCheck(octokit, pullRequest, provider, reference, lastComment, senderLogin);
         }
         catch (error) {
-            if (error instanceof Error)
+            if (error instanceof Error) {
                 core.setFailed(error.message);
+            }
+            else {
+                core.setFailed('Unexpected error while checking the linked work item.');
+            }
         }
     });
 }
-function getLastComment(octokit, repository_owner, repository_name, pull_request_number) {
+function handleMissingWorkItem(octokit, pullRequest, provider, lastComment) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c;
-        var _d;
-        const last_comment_posted = { code: '', id: 0 };
-        // get all comments for the pull request
+        const errorMessage = provider.getMissingMessage();
+        console.log(errorMessage);
+        if (lastComment.code !== provider.commentCodes.missing) {
+            yield createComment(octokit, pullRequest, `${errorMessage}\n\n[Click here](${provider.docsUrl}) to learn more.`, provider.commentCodes.missing);
+        }
+        core.setFailed(errorMessage);
+    });
+}
+function handleWorkItemCheck(octokit, pullRequest, provider, reference, lastComment, senderLogin) {
+    return __awaiter(this, void 0, void 0, function* () {
+        console.log(`${reference.display} found in pull request description.`);
+        console.log('Checking whether the work item is linked ...');
+        if (yield provider.isLinked(octokit, pullRequest, reference)) {
+            yield handleSuccessfulLink(octokit, pullRequest, provider, reference, lastComment, senderLogin);
+            return;
+        }
+        yield handleFailedLink(octokit, pullRequest, provider, reference, lastComment, senderLogin);
+    });
+}
+function handleSuccessfulLink(octokit, pullRequest, provider, reference, lastComment, senderLogin) {
+    return __awaiter(this, void 0, void 0, function* () {
+        console.log('Done.');
+        if (lastComment.code === provider.commentCodes.unlinked &&
+            provider.shouldDeleteFailureComment(senderLogin)) {
+            console.log(`Deleting last comment posted by action: ${lastComment.id}`);
+            yield octokit.rest.issues.deleteComment({
+                owner: pullRequest.owner,
+                repo: pullRequest.repo,
+                comment_id: lastComment.id,
+            });
+        }
+        if (lastComment.code !== provider.commentCodes.success) {
+            yield createComment(octokit, pullRequest, `✅ ${provider.getSuccessMessage(reference)}`, provider.commentCodes.success);
+        }
+    });
+}
+function handleFailedLink(octokit, pullRequest, provider, reference, lastComment, senderLogin) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const errorMessage = provider.getUnlinkedMessage(reference);
+        console.log(errorMessage);
+        if (lastComment.code !== provider.commentCodes.unlinked &&
+            !provider.shouldWaitForLink(senderLogin)) {
+            yield createComment(octokit, pullRequest, `❌ Work item link check failed. ${errorMessage}\n\n[Click here](${provider.docsUrl}) to learn more.`, provider.commentCodes.unlinked);
+        }
+        core.setFailed(errorMessage);
+    });
+}
+function createComment(octokit, pullRequest, body, code) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield octokit.rest.issues.createComment({
+            owner: pullRequest.owner,
+            repo: pullRequest.repo,
+            issue_number: pullRequest.number,
+            body: `${body}\n\n<!-- code: ${code} -->`,
+        });
+    });
+}
+function getLastComment(octokit, pullRequest, provider) {
+    return __awaiter(this, void 0, void 0, function* () {
         try {
             const response = yield octokit.rest.issues.listComments({
-                owner: repository_owner,
-                repo: repository_name,
-                issue_number: pull_request_number,
+                owner: pullRequest.owner,
+                repo: pullRequest.repo,
+                issue_number: pullRequest.number,
             });
-            // check for comments
-            if (response.data.length > 0) {
-                const comments = response.data.map((comment) => {
-                    return {
-                        id: comment.id,
-                        created_at: new Date(comment.created_at),
-                        body: comment.body,
-                    };
-                });
-                // sort comments by date descending
-                comments.sort((a, b) => {
-                    var _a, _b;
-                    var _c, _d;
-                    const aTime = (_c = (_a = a.created_at) === null || _a === void 0 ? void 0 : _a.getTime()) !== null && _c !== void 0 ? _c : 0;
-                    const bTime = (_d = (_b = b.created_at) === null || _b === void 0 ? void 0 : _b.getTime()) !== null && _d !== void 0 ? _d : 0;
-                    return bTime - aTime;
-                });
-                // loop through comments and grab the most recent comment posted by this action
-                // we want to use this to check later so we don't post duplicate comments
-                for (const comment of comments) {
-                    last_comment_posted.id = (_d = comment.id) !== null && _d !== void 0 ? _d : 0;
-                    if ((_a = comment.body) === null || _a === void 0 ? void 0 : _a.includes('lcc-404')) {
-                        last_comment_posted.code = 'lcc-404';
-                        break;
-                    }
-                    if ((_b = comment.body) === null || _b === void 0 ? void 0 : _b.includes('lcc-416')) {
-                        last_comment_posted.code = 'lcc-416';
-                        break;
-                    }
-                    if ((_c = comment.body) === null || _c === void 0 ? void 0 : _c.includes('lcc-200')) {
-                        last_comment_posted.code = 'lcc-200';
-                        break;
-                    }
+            const comments = response.data.map((comment) => { var _a; return ({
+                id: comment.id,
+                created_at: new Date(comment.created_at),
+                body: (_a = comment.body) !== null && _a !== void 0 ? _a : '',
+            }); });
+            comments.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+            for (const comment of comments) {
+                const code = Object.values(provider.commentCodes).find((commentCode) => comment.body.includes(commentCode));
+                if (code) {
+                    return { code, id: comment.id };
                 }
             }
         }
         catch (error) {
-            console.log(error);
+            console.log('Error fetching last comment:', error);
         }
-        return last_comment_posted;
+        return { code: '', id: 0 };
     });
 }
 run();
+
+
+/***/ }),
+
+/***/ 9850:
+/***/ (function(__unused_webpack_module, exports) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.azureDevOpsProvider = void 0;
+const AB_PATTERN = /AB#(\d+)/g;
+const AZURE_BOARDS_BOT = 'azure-boards[bot]';
+const DOCS_URL = 'https://learn.microsoft.com/en-us/azure/devops/boards/github/link-to-from-github?view=azure-devops#use-ab-mention-to-link-from-github-to-azure-boards-work-items';
+exports.azureDevOpsProvider = {
+    name: 'azuredevops',
+    commentCodes: {
+        success: 'lcc-200',
+        missing: 'lcc-404',
+        unlinked: 'lcc-416',
+    },
+    docsUrl: DOCS_URL,
+    findReference(description, pullRequest) {
+        var _a;
+        const match = (_a = description.match(AB_PATTERN)) === null || _a === void 0 ? void 0 : _a[0];
+        if (!match) {
+            return undefined;
+        }
+        const id = match.substring(3);
+        return {
+            id,
+            owner: pullRequest.owner,
+            repo: pullRequest.repo,
+            display: `AB#${id}`,
+        };
+    },
+    isLinked(_octokit, pullRequest, _reference) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (pullRequest.description.includes('[AB#') &&
+                pullRequest.description.includes('/_workitems/edit/'));
+        });
+    },
+    getMissingMessage() {
+        return 'Description does not contain AB#{ID}';
+    },
+    getUnlinkedMessage(reference) {
+        return `Description contains ${reference.display} but the Bot could not link it to an Azure Boards work item`;
+    },
+    getSuccessMessage(reference) {
+        return `Work item link check complete. Description contains link ${reference.display} to an Azure Boards work item.`;
+    },
+    shouldWaitForLink(senderLogin) {
+        return senderLogin === AZURE_BOARDS_BOT;
+    },
+    shouldDeleteFailureComment(senderLogin) {
+        return senderLogin === AZURE_BOARDS_BOT;
+    },
+};
+
+
+/***/ }),
+
+/***/ 3651:
+/***/ (function(__unused_webpack_module, exports) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.githubIssuesProvider = void 0;
+const CLOSING_ISSUE_PATTERN = /\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+(?:([\w.-]+)\/([\w.-]+))?#([1-9]\d*)\b/gi;
+const DOCS_URL = 'https://docs.github.com/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue';
+function isLinkedIssue(value) {
+    return (typeof value === 'object' &&
+        value !== null &&
+        'number' in value &&
+        typeof value.number === 'number');
+}
+function belongsToRepository(issue, owner, repo) {
+    var _a, _b;
+    const repositoryPath = `/repos/${owner}/${repo}`.toLowerCase();
+    const issueUrl = (_b = (_a = issue.repository_url) !== null && _a !== void 0 ? _a : issue.url) !== null && _b !== void 0 ? _b : '';
+    const normalizedUrl = issueUrl.toLowerCase();
+    return (normalizedUrl.endsWith(repositoryPath) ||
+        normalizedUrl.includes(`${repositoryPath}/issues/`));
+}
+exports.githubIssuesProvider = {
+    name: 'github',
+    commentCodes: {
+        success: 'ghi-200',
+        missing: 'ghi-404',
+        unlinked: 'ghi-409',
+    },
+    docsUrl: DOCS_URL,
+    findReference(description, pullRequest) {
+        var _a, _b;
+        const match = CLOSING_ISSUE_PATTERN.exec(description);
+        CLOSING_ISSUE_PATTERN.lastIndex = 0;
+        const id = match === null || match === void 0 ? void 0 : match[3];
+        if (!id) {
+            return undefined;
+        }
+        const owner = (_a = match[1]) !== null && _a !== void 0 ? _a : pullRequest.owner;
+        const repo = (_b = match[2]) !== null && _b !== void 0 ? _b : pullRequest.repo;
+        return {
+            id,
+            owner,
+            repo,
+            display: `${owner}/${repo}#${id}`,
+        };
+    },
+    isLinked(octokit, pullRequest, reference) {
+        return __awaiter(this, void 0, void 0, function* () {
+            for (let page = 1;; page += 1) {
+                const response = yield octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/issues', {
+                    owner: pullRequest.owner,
+                    repo: pullRequest.repo,
+                    pull_number: pullRequest.number,
+                    per_page: 100,
+                    page,
+                });
+                const linkedIssues = Array.isArray(response.data)
+                    ? response.data.filter(isLinkedIssue)
+                    : [];
+                if (linkedIssues.some((issue) => issue.number === Number(reference.id) &&
+                    belongsToRepository(issue, reference.owner, reference.repo))) {
+                    return true;
+                }
+                if (linkedIssues.length < 100) {
+                    return false;
+                }
+            }
+        });
+    },
+    getMissingMessage() {
+        return 'Description does not contain a GitHub closing issue reference, such as Fixes #123';
+    },
+    getUnlinkedMessage(reference) {
+        return `Description references ${reference.display}, but GitHub has not linked that issue to this pull request`;
+    },
+    getSuccessMessage(reference) {
+        return `Work item link check complete. GitHub issue ${reference.display} is linked to this pull request.`;
+    },
+    shouldWaitForLink() {
+        return false;
+    },
+    shouldDeleteFailureComment() {
+        return false;
+    },
+};
+
+
+/***/ }),
+
+/***/ 3121:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.githubIssuesProvider = exports.azureDevOpsProvider = void 0;
+exports.getProvider = getProvider;
+const azure_devops_1 = __nccwpck_require__(9850);
+const github_issues_1 = __nccwpck_require__(3651);
+var azure_devops_2 = __nccwpck_require__(9850);
+Object.defineProperty(exports, "azureDevOpsProvider", ({ enumerable: true, get: function () { return azure_devops_2.azureDevOpsProvider; } }));
+var github_issues_2 = __nccwpck_require__(3651);
+Object.defineProperty(exports, "githubIssuesProvider", ({ enumerable: true, get: function () { return github_issues_2.githubIssuesProvider; } }));
+const providers = {
+    azuredevops: azure_devops_1.azureDevOpsProvider,
+    github: github_issues_1.githubIssuesProvider,
+};
+function getProvider(input) {
+    const provider = providers[input.toLowerCase()];
+    if (!provider) {
+        throw new Error(`Invalid provider '${input}'. Supported providers are: azuredevops, github.`);
+    }
+    return provider;
+}
 
 
 /***/ }),

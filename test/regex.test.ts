@@ -6,9 +6,10 @@ describe('AB# work item regex pattern', () => {
     const match = description.match(/AB#(\d+)/g);
     expect(match).not.toBeNull();
     expect(match).toHaveLength(1);
-    expect(match![0]).toBe('AB#12345');
+    if (!match) throw new Error('Expected a work item reference');
+    expect(match[0]).toBe('AB#12345');
 
-    const workItemId = match![0].substring(3);
+    const workItemId = match[0].substring(3);
     expect(workItemId).toBe('12345');
     expect(/^\d+$/.test(workItemId)).toBe(true);
   });
@@ -18,9 +19,10 @@ describe('AB# work item regex pattern', () => {
     const match = description.match(/AB#(\d+)/g);
     expect(match).not.toBeNull();
     expect(match).toHaveLength(1);
-    expect(match![0]).toBe('AB#12345');
+    if (!match) throw new Error('Expected a work item reference');
+    expect(match[0]).toBe('AB#12345');
 
-    const workItemId = match![0].substring(3);
+    const workItemId = match[0].substring(3);
     expect(workItemId).toBe('12345');
     expect(/^\d+$/.test(workItemId)).toBe(true);
   });
@@ -30,9 +32,10 @@ describe('AB# work item regex pattern', () => {
     const match = description.match(/AB#(\d+)/g);
     expect(match).not.toBeNull();
     expect(match).toHaveLength(1);
-    expect(match![0]).toBe('AB#12345');
+    if (!match) throw new Error('Expected a work item reference');
+    expect(match[0]).toBe('AB#12345');
 
-    const workItemId = match![0].substring(3);
+    const workItemId = match[0].substring(3);
     expect(workItemId).toBe('12345');
     expect(/^\d+$/.test(workItemId)).toBe(true);
   });
@@ -48,8 +51,9 @@ describe('AB# work item regex pattern', () => {
     const match = description.match(/AB#(\d+)/g);
     expect(match).not.toBeNull();
     expect(match).toHaveLength(2);
-    expect(match![0]).toBe('AB#12345');
-    expect(match![1]).toBe('AB#67890');
+    if (!match) throw new Error('Expected work item references');
+    expect(match[0]).toBe('AB#12345');
+    expect(match[1]).toBe('AB#67890');
   });
 
   test('OLD REGEX: demonstrates the newline bug', () => {
@@ -58,7 +62,8 @@ describe('AB# work item regex pattern', () => {
     expect(oldMatch).not.toBeNull();
 
     // This demonstrates the bug - the match includes the newline
-    const workItemId = oldMatch![0].substring(3);
+    if (!oldMatch) throw new Error('Expected the old regex to match');
+    const workItemId = oldMatch[0].substring(3);
     // The old regex would include "12345\nSome" in the match
     expect(workItemId).toContain('12345');
     // And it would fail the integer check because of the newline

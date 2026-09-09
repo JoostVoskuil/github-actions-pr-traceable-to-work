@@ -1,14 +1,14 @@
 {
-  "name": "github-actions-pr-is-linked-to-work-item",
+  "name": "github-actions-pr-traceable-to-work",
   "version": "0.0.1",
   "private": true,
-  "description": "GitHub action to check if a PR is linked to a work item in Azure DevOps",
+  "description": "GitHub Action that requires pull requests to link to an Azure DevOps work item or GitHub issue",
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc",
-    "format": "biome format --write src __tests__",
-    "format-check": "biome format src __tests__",
-    "lint": "biome check src __tests__",
+    "format": "biome format --write src test",
+    "format-check": "biome format src test",
+    "lint": "biome check src test",
     "package": "ncc build --source-map --license licenses.txt && echo {\"type\":\"commonjs\"} > dist/package.json",
     "test": "vitest run",
     "all": "npm run build && npm run package",
@@ -16,25 +16,26 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/JoostVoskuil/github-actions-pr-traceable-to-work.git"
   },
   "keywords": [
     "actions",
-    "node",
-    "setup"
+    "traceability",
+    "issues",
+    "Azure Boards"
   ],
-  "author": "Dan Hellem",
+  "author": "Joost Voskuil",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.10.1",
-    "@actions/github": "^6.0.0"
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.11",
-    "@types/node": "^26.4.0",
+    "@biomejs/biome": "^2.5.12",
+    "@types/node": "^26.5.0",
     "@vercel/ncc": "^0.45.0",
     "shx": "^0.4.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }
