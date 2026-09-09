@@ -1,3 +1,5 @@
+> This action is a pre-release
+
 # Check for a linked work item
 
 Use this action to require a pull request to link to either an Azure DevOps work item or a GitHub issue before it can merge.

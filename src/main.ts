@@ -1,6 +1,5 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import type { Context } from '@actions/github/lib/context';
 import {
   getProvider,
   type Octokit,
@@ -24,7 +23,7 @@ interface Comment {
 
 async function run(): Promise<void> {
   try {
-    const context: Context = github.context;
+    const context = github.context;
     const githubToken = core.getInput('repo-token');
     const provider = getProvider(core.getInput('provider', { required: true }));
     const senderLogin: string = context.payload.sender?.login ?? '';

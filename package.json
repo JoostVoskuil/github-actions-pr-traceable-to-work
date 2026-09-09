@@ -9,8 +9,8 @@
     "format": "biome format --write src test",
     "format-check": "biome format src test",
     "lint": "biome check src test",
-    "package": "ncc build --source-map --license licenses.txt && echo {\"type\":\"commonjs\"} > dist/package.json",
-    "test": "vitest run",
+    "package": "ncc build --source-map --license licenses.txt && printf '%s\\n' '{\"type\":\"commonjs\"}' > dist/package.json",
+    "test": "npm run build && npm run package && vitest run",
     "all": "npm run build && npm run package",
     "clean": "shx rm -rf dist"
   },
@@ -27,8 +27,8 @@
   "author": "Joost Voskuil",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.1"
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
