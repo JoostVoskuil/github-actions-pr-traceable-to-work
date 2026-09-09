@@ -6,13 +6,13 @@
 
 This JavaScript action executes the committed `dist/index.js` bundle; users do not install its dependencies or build it before use. When a source change affects action behavior, run `npm run package` and commit the regenerated `dist/` directory with the source change.
 
-To create a release, update both `package.json` and `package-lock.json` to the intended stable semantic version in the pull request. After the pull request merges into `main`, the release workflow rebuilds and tests the action, commits any updated `dist/` files, and compares the requested version with the latest `vMAJOR.MINOR.PATCH` tag:
+To create a release, add exactly one release label to the pull request: `release:patch`, `release:minor`, or `release:major`. After the pull request merges into `main`, the release workflow rebuilds and tests the action, commits any updated `dist/` files, and calculates the next version from the latest `vMAJOR.MINOR.PATCH` tag:
 
 - a patch release increments only the patch number, such as `0.0.1` to `0.0.2`;
 - a minor release increments the minor number and resets patch to zero, such as `0.0.2` to `0.1.0`;
 - a major release increments the major number and resets minor and patch to zero, such as `0.1.0` to `1.0.0`.
 
-The workflow rejects skipped, duplicate, downgrade, pre-release, and build-metadata versions. A merge without a new version still synchronizes the generated bundle, but does not create a tag or GitHub Release.
+The workflow rejects pull requests with multiple release labels. A merge without a release label still synchronizes the generated bundle, but does not create a tag or GitHub Release. The `version` fields in `package.json` and `package-lock.json` are not release inputs and do not need to change for a GitHub Action release.
 
 Use this action to require a pull request to link to either an Azure DevOps work item or a GitHub issue before it can merge.
 
