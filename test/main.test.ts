@@ -23,7 +23,7 @@ test('test runs', () => {
   process.env.INPUT_PROVIDER = 'azuredevops';
   process.env['INPUT_REPO-TOKEN'] = 'test-token';
   const np = process.execPath;
-  const ip = path.join(__dirname, '..', 'lib', 'main.js');
+  const ip = path.join(__dirname, '..', 'dist', 'index.js');
   const options: cp.ExecFileSyncOptions = {
     env: process.env,
   };
