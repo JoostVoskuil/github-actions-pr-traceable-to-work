@@ -9,10 +9,12 @@
     "format": "biome format --write src test",
     "format-check": "biome format src test",
     "lint": "biome check src test",
-    "package": "ncc build --source-map --license licenses.txt && printf '%s\\n' '{\"type\":\"commonjs\"}' > dist/package.json",
+    "package": "ncc build lib/main.js --out dist --source-map --license licenses.txt && printf '%s\\n' '{\"type\":\"commonjs\"}' > dist/package.json",
     "test": "npm run build && npm run package && vitest run",
     "all": "npm run build && npm run package",
-    "clean": "shx rm -rf dist"
+    "clean": "shx rm -rf lib dist",
+    "verify-package": "test -f dist/index.js && test -f dist/package.json",
+    "ci": "npm run lint && npm run format-check && npm run test && npm run verify-package"
   },
   "repository": {
     "type": "git",
