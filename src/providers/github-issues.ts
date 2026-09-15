@@ -141,10 +141,10 @@ export const githubIssuesProvider: WorkItemProvider = {
     return false;
   },
   getMissingMessage() {
-    return 'Description does not contain a GitHub closing issue reference, such as Fixes #123';
+    return 'Description does not contain a GitHub issue reference, such as Fixes #123';
   },
   getUnlinkedMessage(reference: WorkItemReference) {
-    return `Description references ${reference.display}, but GitHub has not linked that issue to this pull request`;
+    return `Description contains ${reference.display}, but GitHub has not linked that issue`;
   },
   getSuccessMessage(reference: WorkItemReference) {
     return `Work item link check complete. GitHub issue ${reference.display} is linked to this pull request.`;

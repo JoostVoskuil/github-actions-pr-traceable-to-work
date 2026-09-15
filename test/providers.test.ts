@@ -95,6 +95,25 @@ describe('Azure DevOps provider', () => {
       azureDevOpsProvider.isLinked(createOctokit([]), pullRequest, reference),
     ).resolves.toBe(false);
   });
+
+  test('uses consistent Azure DevOps work item messages', () => {
+    const reference = azureDevOpsProvider.findReference(
+      'Implements AB#123',
+      pullRequest,
+    );
+
+    expect(azureDevOpsProvider.getMissingMessage()).toBe(
+      'Description does not contain an Azure DevOps work item reference, such as AB#123',
+    );
+    expect(reference).toBeDefined();
+    if (!reference) throw new Error('Expected an Azure DevOps reference');
+    expect(azureDevOpsProvider.getUnlinkedMessage(reference)).toBe(
+      'Description contains AB#123, but Azure DevOps has not linked that work item',
+    );
+    expect(azureDevOpsProvider.getSuccessMessage(reference)).toBe(
+      'Work item link check complete. Azure DevOps work item AB#123 is linked to this pull request.',
+    );
+  });
 });
 
 describe('GitHub Issues provider', () => {
@@ -107,6 +126,25 @@ describe('GitHub Issues provider', () => {
       owner: 'octo-org',
       repo: 'project',
     });
+  });
+
+  test('uses consistent GitHub issue messages', () => {
+    const reference = githubIssuesProvider.findReference(
+      'Fixes #123',
+      pullRequest,
+    );
+
+    expect(githubIssuesProvider.getMissingMessage()).toBe(
+      'Description does not contain a GitHub issue reference, such as Fixes #123',
+    );
+    expect(reference).toBeDefined();
+    if (!reference) throw new Error('Expected a GitHub issue reference');
+    expect(githubIssuesProvider.getUnlinkedMessage(reference)).toBe(
+      'Description contains octo-org/project#123, but GitHub has not linked that issue',
+    );
+    expect(githubIssuesProvider.getSuccessMessage(reference)).toBe(
+      'Work item link check complete. GitHub issue octo-org/project#123 is linked to this pull request.',
+    );
   });
 
   test('recognizes closing keywords without regard to case', () => {

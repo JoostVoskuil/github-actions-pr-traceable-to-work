@@ -44,13 +44,13 @@ export const azureDevOpsProvider: WorkItemProvider = {
     );
   },
   getMissingMessage() {
-    return 'Description does not contain AB#{ID}';
+    return 'Description does not contain an Azure DevOps work item reference, such as AB#123';
   },
   getUnlinkedMessage(reference: WorkItemReference) {
-    return `Description contains ${reference.display} but the Bot could not link it to an Azure Boards work item`;
+    return `Description contains ${reference.display}, but Azure DevOps has not linked that work item`;
   },
   getSuccessMessage(reference: WorkItemReference) {
-    return `Work item link check complete. Description contains link ${reference.display} to an Azure Boards work item.`;
+    return `Work item link check complete. Azure DevOps work item ${reference.display} is linked to this pull request.`;
   },
   shouldWaitForLink(senderLogin: string) {
     return senderLogin === AZURE_BOARDS_BOT;

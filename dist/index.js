@@ -37190,13 +37190,13 @@ const azureDevOpsProvider = {
             pullRequest.description.includes('/_workitems/edit/'));
     },
     getMissingMessage() {
-        return 'Description does not contain AB#{ID}';
+        return 'Description does not contain an Azure DevOps work item reference, such as AB#123';
     },
     getUnlinkedMessage(reference) {
-        return `Description contains ${reference.display} but the Bot could not link it to an Azure Boards work item`;
+        return `Description contains ${reference.display}, but Azure DevOps has not linked that work item`;
     },
     getSuccessMessage(reference) {
-        return `Work item link check complete. Description contains link ${reference.display} to an Azure Boards work item.`;
+        return `Work item link check complete. Azure DevOps work item ${reference.display} is linked to this pull request.`;
     },
     shouldWaitForLink(senderLogin) {
         return senderLogin === AZURE_BOARDS_BOT;
@@ -37289,10 +37289,10 @@ const githubIssuesProvider = {
         return false;
     },
     getMissingMessage() {
-        return 'Description does not contain a GitHub closing issue reference, such as Fixes #123';
+        return 'Description does not contain a GitHub issue reference, such as Fixes #123';
     },
     getUnlinkedMessage(reference) {
-        return `Description references ${reference.display}, but GitHub has not linked that issue to this pull request`;
+        return `Description contains ${reference.display}, but GitHub has not linked that issue`;
     },
     getSuccessMessage(reference) {
         return `Work item link check complete. GitHub issue ${reference.display} is linked to this pull request.`;
