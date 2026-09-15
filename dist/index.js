@@ -37213,14 +37213,16 @@ function isLinkedIssue(value) {
     return (typeof value === 'object' &&
         value !== null &&
         'number' in value &&
-        typeof value.number === 'number');
+        typeof value.number === 'number' &&
+        'repository' in value &&
+        typeof value.repository === 'object' &&
+        value.repository !== null &&
+        'nameWithOwner' in value.repository &&
+        typeof value.repository.nameWithOwner === 'string');
 }
 function belongsToRepository(issue, owner, repo) {
-    const repositoryPath = `/repos/${owner}/${repo}`.toLowerCase();
-    const issueUrl = issue.repository_url ?? issue.url ?? '';
-    const normalizedUrl = issueUrl.toLowerCase();
-    return (normalizedUrl.endsWith(repositoryPath) ||
-        normalizedUrl.includes(`${repositoryPath}/issues/`));
+    return (issue.repository?.nameWithOwner.toLowerCase() ===
+        `${owner}/${repo}`.toLowerCase());
 }
 const githubIssuesProvider = {
     name: 'github',
@@ -37247,25 +37249,44 @@ const githubIssuesProvider = {
         };
     },
     async isLinked(octokit, pullRequest, reference) {
-        for (let page = 1;; page += 1) {
-            const response = await octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/issues', {
+        let cursor = null;
+        do {
+            const response = await octokit.graphql(`
+          query($owner: String!, $repo: String!, $pullNumber: Int!, $after: String) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pullNumber) {
+                closingIssuesReferences(first: 100, after: $after) {
+                  nodes {
+                    number
+                    repository {
+                      nameWithOwner
+                    }
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
+            }
+          }
+          `, {
                 owner: pullRequest.owner,
                 repo: pullRequest.repo,
-                pull_number: pullRequest.number,
-                per_page: 100,
-                page,
+                pullNumber: pullRequest.number,
+                after: cursor,
             });
-            const linkedIssues = Array.isArray(response.data)
-                ? response.data.filter(isLinkedIssue)
-                : [];
+            const connection = response.repository.pullRequest.closingIssuesReferences;
+            const linkedIssues = connection.nodes.filter(isLinkedIssue);
             if (linkedIssues.some((issue) => issue.number === Number(reference.id) &&
                 belongsToRepository(issue, reference.owner, reference.repo))) {
                 return true;
             }
-            if (linkedIssues.length < 100) {
+            cursor = connection.pageInfo.endCursor;
+            if (!connection.pageInfo.hasNextPage)
                 return false;
-            }
-        }
+        } while (cursor);
+        return false;
     },
     getMissingMessage() {
         return 'Description does not contain a GitHub closing issue reference, such as Fixes #123';

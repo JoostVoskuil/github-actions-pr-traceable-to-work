@@ -14,13 +14,30 @@ const pullRequest: PullRequestContext = {
 };
 
 function createOctokit(pages: unknown[][]): Octokit {
-  const request = vi.fn(
-    async (_route: string, parameters: { page: number }) => ({
-      data: pages[parameters.page - 1] ?? [],
-    }),
+  const request = vi.fn(async () => ({ data: [] }));
+  const graphql = vi.fn(
+    async (_query: string, parameters: { after: string | null }) => {
+      const page = parameters.after
+        ? Number(parameters.after.replace('cursor-', '')) + 1
+        : 1;
+      const nodes = pages[page - 1] ?? [];
+      return {
+        repository: {
+          pullRequest: {
+            closingIssuesReferences: {
+              nodes,
+              pageInfo: {
+                hasNextPage: page < pages.length,
+                endCursor: page < pages.length ? `cursor-${page}` : null,
+              },
+            },
+          },
+        },
+      };
+    },
   );
 
-  return { request } as unknown as Octokit;
+  return { request, graphql } as unknown as Octokit;
 }
 
 describe('Azure DevOps provider', () => {
@@ -98,7 +115,7 @@ describe('GitHub Issues provider', () => {
       [
         {
           number: 123,
-          repository_url: 'https://api.github.com/repos/octo-org/project',
+          repository: { nameWithOwner: 'octo-org/project' },
         },
       ],
     ]);
@@ -118,7 +135,7 @@ describe('GitHub Issues provider', () => {
       [
         {
           number: 123,
-          repository_url: 'https://api.github.com/repos/octo-org/project',
+          repository: { nameWithOwner: 'octo-org/project' },
         },
       ],
     ]);
@@ -136,14 +153,14 @@ describe('GitHub Issues provider', () => {
     );
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
       number: index + 1000,
-      repository_url: 'https://api.github.com/repos/octo-org/project',
+      repository: { nameWithOwner: 'octo-org/project' },
     }));
     const octokit = createOctokit([
       firstPage,
       [
         {
           number: 123,
-          repository_url: 'https://api.github.com/repos/octo-org/project',
+          repository: { nameWithOwner: 'octo-org/project' },
         },
       ],
     ]);
@@ -152,5 +169,22 @@ describe('GitHub Issues provider', () => {
     await expect(
       githubIssuesProvider.isLinked(octokit, pullRequest, reference),
     ).resolves.toBe(true);
+  });
+
+  test('returns false when an issue is absent from all linked-issue pages', async () => {
+    const reference = githubIssuesProvider.findReference(
+      'Fixes #999',
+      pullRequest,
+    );
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      number: index + 1000,
+      repository: { nameWithOwner: 'octo-org/project' },
+    }));
+    const octokit = createOctokit([firstPage, []]);
+
+    if (!reference) throw new Error('Expected a GitHub issue reference');
+    await expect(
+      githubIssuesProvider.isLinked(octokit, pullRequest, reference),
+    ).resolves.toBe(false);
   });
 });
