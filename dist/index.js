@@ -37161,7 +37161,7 @@ function getOctokit(token, options, ...additionalPlugins) {
 }
 //# sourceMappingURL=github.js.map
 ;// CONCATENATED MODULE: ./lib/providers/azure-devops.js
-const AB_PATTERN = /AB#(\d+)/g;
+const AB_PATTERN = /\bAB#(\d+)\b/i;
 const AZURE_BOARDS_BOT = 'azure-boards[bot]';
 const DOCS_URL = 'https://learn.microsoft.com/en-us/azure/devops/boards/github/link-to-from-github?view=azure-devops#use-ab-mention-to-link-from-github-to-azure-boards-work-items';
 const azureDevOpsProvider = {
@@ -37173,11 +37173,11 @@ const azureDevOpsProvider = {
     },
     docsUrl: DOCS_URL,
     findReference(description, pullRequest) {
-        const match = description.match(AB_PATTERN)?.[0];
+        const match = AB_PATTERN.exec(description);
         if (!match) {
             return undefined;
         }
-        const id = match.substring(3);
+        const id = match[1];
         return {
             id,
             owner: pullRequest.owner,

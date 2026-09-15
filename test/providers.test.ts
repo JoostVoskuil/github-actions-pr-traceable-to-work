@@ -52,6 +52,26 @@ describe('Azure DevOps provider', () => {
     });
   });
 
+  test('finds an AB work item reference after a closing keyword', () => {
+    expect(
+      azureDevOpsProvider.findReference('Closes AB#2469', pullRequest),
+    ).toMatchObject({
+      id: '2469',
+      display: 'AB#2469',
+      owner: 'octo-org',
+      repo: 'project',
+    });
+  });
+
+  test('accepts a lowercase AB reference', () => {
+    expect(
+      azureDevOpsProvider.findReference('Closes ab#2469', pullRequest),
+    ).toMatchObject({
+      id: '2469',
+      display: 'AB#2469',
+    });
+  });
+
   test('requires Azure Boards rendered link evidence', async () => {
     const reference = azureDevOpsProvider.findReference(
       'Implements AB#123',
