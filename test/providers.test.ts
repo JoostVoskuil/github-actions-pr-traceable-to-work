@@ -63,6 +63,18 @@ describe('Azure DevOps provider', () => {
     });
   });
 
+  test('finds an AB work item reference inside a Markdown link', () => {
+    expect(
+      azureDevOpsProvider.findReference(
+        'Closes [AB#2659](https://dev.azure.com/example/_workitems/edit/2659)',
+        pullRequest,
+      ),
+    ).toMatchObject({
+      id: '2659',
+      display: 'AB#2659',
+    });
+  });
+
   test('accepts a lowercase AB reference', () => {
     expect(
       azureDevOpsProvider.findReference('Closes ab#2469', pullRequest),
